@@ -1,0 +1,50 @@
+
+services:
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: laravel_app
+        ports:
+            - "8000:8000"
+        volumes:
+            - .:/var/www/html
+            - ./storage:/var/www/html/storage
+        networks:
+            - laravel_network
+        depends_on:
+            - db
+
+    db:
+        image: mysql:8.0
+        container_name: mysql_db
+        restart: always
+        ports:
+            - "3307:3306"
+        environment:
+            MYSQL_ROOT_PASSWORD: root_password
+            MYSQL_DATABASE: laravel_db
+            MYSQL_USER: laravel_user
+            MYSQL_PASSWORD: laravel_password
+        volumes:
+            - db_data:/var/lib/mysql
+        networks:
+            - laravel_network
+
+    artisan:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: artisan
+        entrypoint: ["php", "/var/www/html/artisan"]
+        volumes:
+            - .:/var/www/html
+        networks:
+            - laravel_network
+
+networks:
+    laravel_network:
+        driver: bridge
+
+volumes:
+    db_data:
