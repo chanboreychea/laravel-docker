@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Models\User;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -24,30 +25,37 @@ class AuthController extends Controller
         if ($validator->fails()) {
             return response()->json($validator->errors(), 422);
         }
-        $user_id = (string) Str::uuid();
-        $user = User::create([
-            'id' => $user_id,
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-        ]);
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        try {
 
-        return response()->json(['token' => $token, 'user' => $user], 201);
+            $user_id = (string) Str::uuid();
+
+            $user = User::create([
+                'id' => $user_id,
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+            ]);
+
+            return response()->json(['user' => $user], 201);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 
     public function login(Request $request)
     {
-        try {
-            $validator = Validator::make($request->all(), [
-                'email' => 'required|string|email',
-                'password' => 'required|string',
-            ]);
 
-            if ($validator->fails()) {
-                return response()->json($validator->errors(), 422);
-            }
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|string|email',
+            'password' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        try {
 
             $user = User::where('email', $request->email)->first();
 
@@ -55,9 +63,18 @@ class AuthController extends Controller
                 return response()->json(['error' => 'Invalid credentials'], 401);
             }
 
-            $token = $user->createToken('auth_token')->plainTextToken;
+            $token = $user->createToken('pinapple', ['*']);
 
-            return response()->json(['token' => $token, 'user' => $user], 200);
+            $expiresAt = Carbon::now()->addMonth();
+            $token->accessToken->expires_at = $expiresAt;
+            $token->accessToken->save();
+
+            return response()->json([
+                'token' => $token->plainTextToken,
+                'expires_at' => $token->accessToken->expires_at,
+                'user_id' => $user->id,
+                'user_name' => $user->name
+            ], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
